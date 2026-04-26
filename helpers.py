@@ -4,6 +4,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
+_API_KEY_ENV_NAMES = ("BH_AGENT_API_KEY", "ZAI_API_KEY")
+_PLACEHOLDER_API_KEYS = ("your_api_key_here", "your_openai_compatible_key_here")
+
+
 def _load_env():
     p = Path(__file__).parent / ".env"
     if not p.exists():
@@ -13,7 +17,13 @@ def _load_env():
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, v = line.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        k = k.strip()
+        v = v.strip().strip('"').strip("'")
+        # Skip placeholder API keys so a bootstrap-created .env doesn't authenticate
+        # as 'your_api_key_here'. Mirrors agent_provider.is_placeholder_key.
+        if k in _API_KEY_ENV_NAMES and v in _PLACEHOLDER_API_KEYS:
+            continue
+        os.environ.setdefault(k, v)
 
 
 _load_env()

@@ -11,6 +11,14 @@ DEFAULT_MODEL = "glm-5.1"
 # PaaS pay-as-you-go users should set BH_AGENT_BASE_URL=https://api.z.ai/api/paas/v4/.
 DEFAULT_BASE_URL = "https://api.z.ai/api/coding/paas/v4/"
 DEFAULT_API_KEY_ENVS = ("BH_AGENT_API_KEY", "ZAI_API_KEY")
+# Strings that look like a key but are placeholders shipped in .env.example.
+# Treated as "not set" by resolve_api_key and skipped by the env loaders so a
+# bootstrap-created .env never silently authenticates as the placeholder.
+PLACEHOLDER_API_KEYS = frozenset({"your_api_key_here", "your_openai_compatible_key_here"})
+
+
+def is_placeholder_key(value: str | None) -> bool:
+    return not value or value.strip() in PLACEHOLDER_API_KEYS
 
 
 @dataclass
@@ -24,12 +32,19 @@ class ProviderConfig:
 
 
 def resolve_api_key(api_key_env: str | None = None) -> tuple[str | None, str | None]:
-    """Return (api_key, env_name) using the explicit env first, then defaults."""
+    """Return (api_key, env_name) using the explicit env first, then defaults.
+
+    Placeholder values from .env.example (e.g. 'your_api_key_here') count as not-set,
+    so a bootstrap-created .env never authenticates as the placeholder.
+    """
     names = [api_key_env] if api_key_env else []
     names += [n for n in DEFAULT_API_KEY_ENVS if n not in names]
     for name in names:
-        if name and os.environ.get(name):
-            return os.environ[name], name
+        if not name:
+            continue
+        value = os.environ.get(name)
+        if value and not is_placeholder_key(value):
+            return value, name
     return None, None
 
 

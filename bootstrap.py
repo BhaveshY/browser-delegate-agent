@@ -10,7 +10,14 @@ import sys
 from pathlib import Path
 
 from admin import daemon_alive, run_setup
-from agent_provider import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_API_KEY_ENVS, ProviderConfig, resolve_api_key
+from agent_provider import (
+    DEFAULT_BASE_URL,
+    DEFAULT_MODEL,
+    DEFAULT_API_KEY_ENVS,
+    ProviderConfig,
+    is_placeholder_key,
+    resolve_api_key,
+)
 
 
 DEMO_TASK = (
@@ -56,7 +63,10 @@ def ensure_env_file(repo: Path):
 
 
 def _reload_env(repo: Path):
-    """Re-read repo/.env into os.environ so steps after `ensure_env_file` see new values."""
+    """Re-read repo/.env into os.environ so steps after `ensure_env_file` see new values.
+
+    Skips placeholder API keys (centralized in agent_provider.is_placeholder_key).
+    """
     env_file = repo / ".env"
     if not env_file.exists():
         return
@@ -65,9 +75,13 @@ def _reload_env(repo: Path):
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, v = line.split("=", 1)
+        k = k.strip()
         v = v.strip().strip('"').strip("'")
-        if v and v != "your_api_key_here":
-            os.environ.setdefault(k.strip(), v)
+        if not v:
+            continue
+        if k in DEFAULT_API_KEY_ENVS and is_placeholder_key(v):
+            continue
+        os.environ.setdefault(k, v)
 
 
 def install_editable(repo: Path):

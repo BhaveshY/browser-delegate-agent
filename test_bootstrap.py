@@ -69,3 +69,20 @@ def test_ensure_env_file_does_not_overwrite_existing(tmp_path):
     assert bootstrap.ensure_env_file(repo)
 
     assert (repo / ".env").read_text() == "BH_AGENT_API_KEY=real_key\n"
+
+
+def test_resolve_api_key_treats_placeholder_as_unset(monkeypatch):
+    from agent_provider import resolve_api_key
+
+    monkeypatch.setenv("BH_AGENT_API_KEY", "your_api_key_here")
+    monkeypatch.delenv("ZAI_API_KEY", raising=False)
+
+    assert resolve_api_key() == (None, None)
+
+
+def test_resolve_api_key_returns_real_key(monkeypatch):
+    from agent_provider import resolve_api_key
+
+    monkeypatch.setenv("BH_AGENT_API_KEY", "real_key_xyz")
+
+    assert resolve_api_key() == ("real_key_xyz", "BH_AGENT_API_KEY")
