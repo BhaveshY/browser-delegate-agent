@@ -1,17 +1,19 @@
-<img src="https://r2.browser-use.com/github/ajsdlasnnalsgasld.png" alt="Browser Harness" width="100%" />
+# Browser Delegate Agent
 
-# Browser Harness
+Self-bootstrapping real-browser delegation for Codex, Claude Code, and OpenAI-compatible models.
 
 Point Codex or Claude Code at this repo and it bootstraps a real-browser delegate agent for you.
 
-Browser Harness connects to your already-running Chrome, Edge, or Comet profile through CDP. It can now also delegate browser-heavy work to an external OpenAI-compatible model, defaulting to Z.AI `glm-5.1`, so your main coding agent can spend fewer tokens babysitting web pages.
+Browser Delegate Agent connects to your already-running Chrome, Edge, or Comet profile through CDP. It delegates browser-heavy work to an external OpenAI-compatible model, defaulting to Z.AI `glm-5.1`, so your main coding agent can spend fewer tokens babysitting web pages.
+
+Built on top of the excellent MIT-licensed [`browser-use/browser-harness`](https://github.com/browser-use/browser-harness). See [Credits](#credits).
 
 ## 60-second quickstart
 
 Paste this into Codex or Claude Code:
 
 ```text
-Set up https://github.com/browser-use/browser-harness for me.
+Set up https://github.com/BhaveshY/browser-delegate-agent for me.
 
 Read install.md first. Run `uv run browser-harness --bootstrap` from the checkout. Then read SKILL.md and helpers.py for normal usage. When setup opens a browser permission or verification tab, activate it so I can see it.
 ```
@@ -27,7 +29,7 @@ Bootstrap does the boring parts:
 ## Delegate browser work
 
 ```bash
-browser-harness delegate "Open the browser-harness repo and summarize the visible README"
+browser-harness delegate "Open the browser-delegate-agent repo and summarize the visible README"
 ```
 
 Defaults:
@@ -65,7 +67,7 @@ OpenAI-compatible model, e.g. GLM-5.1
         |
         |  JSON tool calls only
         v
-Browser Harness tool runner
+Browser Delegate Agent tool runner
         |
         |  Unix socket JSON lines
         v
@@ -84,8 +86,8 @@ The external model does not get shell access or repo file access. It receives co
 
 ## Why not just Browser Use, Playwright, or MCP?
 
-- **Browser Use cloud** is great for managed remote browsers. Browser Harness is for your real local browser profile, with optional Browser Use cloud support when you want remote sessions.
-- **Playwright** is excellent for tests. Browser Harness is optimized for agents operating messy real sites where screenshots, coordinates, CDP, and mid-task helper edits are often faster.
+- **Browser Use cloud** is great for managed remote browsers. Browser Delegate Agent is for your real local browser profile, with optional Browser Use cloud support when you want remote sessions.
+- **Playwright** is excellent for tests. Browser Delegate Agent is optimized for agents operating messy real sites where screenshots, coordinates, CDP, and mid-task helper edits are often faster.
 - **MCP** is a good integration surface. This repo stays installable as one tiny CLI first; an MCP wrapper can sit on top later.
 
 ## Useful commands
@@ -108,3 +110,9 @@ The best contributions are small, field-tested improvements:
 - Better bootstrap behavior for Codex, Claude Code, and other agents.
 
 If an agent learns something non-obvious while completing a site workflow, capture the durable map, not the diary: selectors, URL patterns, API endpoints, waits, and traps.
+
+## Credits
+
+This project is based on [`browser-use/browser-harness`](https://github.com/browser-use/browser-harness), created by the Browser Use team and released under the MIT License. The original copyright notice is preserved in [LICENSE](LICENSE), and additional attribution is in [NOTICE.md](NOTICE.md).
+
+The delegate-agent layer, self-bootstrap flow, Claude/Codex registration, OpenAI-compatible provider loop, and safety policy additions are maintained in this standalone repository.

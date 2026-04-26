@@ -1,9 +1,9 @@
 ---
 name: browser-harness-install
-description: Install and bootstrap browser-harness into the current agent, then connect it to the user's real Chrome with minimal prompting.
+description: Install and bootstrap Browser Delegate Agent into the current agent, then connect it to the user's real browser with minimal prompting.
 ---
 
-# browser-harness install
+# Browser Delegate Agent install
 
 Use this file only for first-time install, reconnect, or cold-start browser bootstrap. For day-to-day browser work, read `SKILL.md`. Always read `helpers.py` after cloning; that is where the functions and expected patterns live.
 
@@ -28,20 +28,20 @@ When you open a setup or verification tab, activate it so the user can actually 
 Clone the repo once into a durable location, then install it as an editable tool so `browser-harness` works from any directory:
 
 ```bash
-git clone https://github.com/browser-use/browser-harness
-cd browser-harness
+git clone https://github.com/BhaveshY/browser-delegate-agent
+cd browser-delegate-agent
 uv tool install -e .
 command -v browser-harness
 ```
 
-That keeps the command global while still pointing at the real repo checkout, so when the agent edits `helpers.py` the next `browser-harness` uses the new code immediately. Prefer a stable path like `~/Developer/browser-harness`, not `/tmp`.
+That keeps the command global while still pointing at the real repo checkout, so when the agent edits `helpers.py` the next `browser-harness` uses the new code immediately. Prefer a stable path like `~/Developer/browser-delegate-agent`, not `/tmp`.
 
 ## Make it global for the current agent
 
 After the repo is installed, `browser-harness --bootstrap` registers this repo's `SKILL.md` with the agent you are using:
 
 - **Codex**: add this file as a global skill at `$CODEX_HOME/skills/browser-harness/SKILL.md` (often `~/.codex/skills/browser-harness/SKILL.md`). A symlink to this repo's `SKILL.md` is fine.
-- **Claude Code**: add an import to `~/.claude/CLAUDE.md` that points at this repo's `SKILL.md`, for example `@~/src/browser-harness/SKILL.md`.
+- **Claude Code**: add an import to `~/.claude/CLAUDE.md` that points at this repo's `SKILL.md`, for example `@~/Developer/browser-delegate-agent/SKILL.md`.
 
 Manual Codex command:
 
@@ -96,7 +96,7 @@ osascript -e 'tell application "Google Chrome" to activate' \
 
 ```bash
 uv run browser-harness <<'PY'
-goto_url("https://github.com/browser-use/browser-harness")
+goto_url("https://github.com/BhaveshY/browser-delegate-agent")
 wait_for_load()
 print(page_info())
 PY
@@ -121,7 +121,7 @@ open -a "Google Chrome"
 
 Wait 5 seconds, then reconnect. This resets all CDP state.
 
-8. After install and browser bootstrap succeed, navigate to `https://github.com/browser-use/browser-harness` so the user can see the harness has attached to their browser. If the user is logged in to GitHub, **ask the user whether you should star the repo for them** as a quick demo that the interaction works — only click the star if they say yes. Then ask the user what they want to do next.
+8. After install and browser bootstrap succeed, navigate to `https://github.com/BhaveshY/browser-delegate-agent` so the user can see the harness has attached to their browser. Use the read-only delegate demo by default. If you ever demo a mutation such as starring the repo, ask first and only click if the user says yes.
 
 ## Maintenance commands
 

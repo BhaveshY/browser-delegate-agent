@@ -22,7 +22,8 @@ _load_env()
 
 NAME = os.environ.get("BU_NAME", "default")
 BU_API = "https://api.browser-use.com/api/v3"
-GH_RELEASES = "https://api.github.com/repos/browser-use/browser-harness/releases/latest"
+PACKAGE_NAMES = ("browser-delegate-agent", "browser-harness")
+GH_RELEASES = "https://api.github.com/repos/BhaveshY/browser-delegate-agent/releases/latest"
 VERSION_CACHE = Path("/tmp/bu-version-cache.json")
 VERSION_CACHE_TTL = 24 * 3600
 
@@ -341,13 +342,15 @@ def sync_local_profile(profile_name, browser=None, cloud_profile_id=None,
 
 
 def _version():
-    """Installed version of the browser-harness package. Empty string if unknown."""
+    """Installed version of the package. Empty string if unknown."""
     try:
         from importlib.metadata import PackageNotFoundError, version
-        try:
-            return version("browser-harness")
-        except PackageNotFoundError:
-            return ""
+        for package in PACKAGE_NAMES:
+            try:
+                return version(package)
+            except PackageNotFoundError:
+                continue
+        return ""
     except Exception:
         return ""
 
@@ -602,10 +605,10 @@ def run_update(yes=False):
         if r.returncode != 0:
             return r.returncode
     elif mode == "pypi":
-        tool_upgrade = subprocess.run(["uv", "tool", "upgrade", "browser-harness"])
+        tool_upgrade = subprocess.run(["uv", "tool", "upgrade", PACKAGE_NAMES[0]])
         if tool_upgrade.returncode != 0:
             # Fall back to pip in case this wasn't a `uv tool install`.
-            pip = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "browser-harness"])
+            pip = subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", PACKAGE_NAMES[0]])
             if pip.returncode != 0:
                 return pip.returncode
     else:

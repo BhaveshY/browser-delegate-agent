@@ -3,9 +3,9 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "browser-harness"
+name = "browser-delegate-agent"
 version = "0.1.0"
-description = "The simplest, thinnest, and most powerful harness to control your real browser with your agent."
+description = "A self-bootstrapping real-browser delegate agent for Codex, Claude Code, and OpenAI-compatible models."
 requires-python = ">=3.11"
 dependencies = [
     "cdp-use==1.4.5",

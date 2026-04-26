@@ -1,9 +1,9 @@
 ---
-name: browser-harness
+name: browser-delegate-agent
 description: Direct browser control via CDP. Use when the user wants to automate, scrape, test, or interact with web pages. Connects to the user's already-running Chrome.
 ---
 
-# browser-harness
+# Browser Delegate Agent
 
 Direct browser control via CDP. Read helpers.py — that's where the functions live. For setup, install, or connection problems, read install.md.
 
@@ -52,7 +52,7 @@ run.py calls ensure_daemon() before exec — you never start/stop manually unles
 Use the delegate when browser work would burn a lot of main-agent tokens:
 
 ```bash
-browser-harness delegate "Open GitHub and summarize the current browser-harness repo page"
+browser-harness delegate "Open GitHub and summarize the current browser-delegate-agent repo page"
 ```
 
 Defaults: `glm-5.1`, `https://api.z.ai/api/paas/v4/`, `BH_AGENT_API_KEY` or `ZAI_API_KEY`, autonomous policy, browser-only tools. Use `--policy confirm` for logged-in mutations and `--policy dry-run` for planning without browser actions.

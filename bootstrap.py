@@ -14,7 +14,7 @@ from agent_provider import DEFAULT_BASE_URL, DEFAULT_MODEL, DEFAULT_API_KEY_ENVS
 
 
 DEMO_TASK = (
-    "Open https://github.com/browser-use/browser-harness and summarize the visible repo name, "
+    "Open https://github.com/BhaveshY/browser-delegate-agent and summarize the visible repo name, "
     "description, and page state. Do not star, watch, fork, sign in, or mutate anything."
 )
 
@@ -116,7 +116,7 @@ def run_safe_demo(ns):
         ),
         policy=Policy(mode="autonomous"),
         max_steps=8,
-        start_url="https://github.com/browser-use/browser-harness",
+        start_url="https://github.com/BhaveshY/browser-delegate-agent",
         include_code=False,
         transcript=Transcript(enabled=not ns.no_transcript),
     )
