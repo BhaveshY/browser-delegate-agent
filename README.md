@@ -35,7 +35,7 @@ browser-harness delegate "Open the browser-delegate-agent repo and summarize the
 Defaults:
 
 - Model: `glm-5.1`
-- Base URL: `https://api.z.ai/api/paas/v4/`
+- Base URL: `https://api.z.ai/api/coding/paas/v4/` (GLM Coding Plan endpoint; pay-as-you-go PaaS users override with `https://api.z.ai/api/paas/v4/`)
 - Policy: `autonomous`
 - Tools: browser-only navigation, observe, click, type, scroll, tabs, HTTP fetch, and finish
 
@@ -44,8 +44,8 @@ Use any OpenAI-compatible provider:
 ```bash
 BH_AGENT_API_KEY=... \
 browser-harness delegate \
-  --base-url https://api.z.ai/api/paas/v4/ \
-  --model glm-5.1 \
+  --base-url https://api.openai.com/v1/ \
+  --model gpt-4o-mini \
   "Find the current page title"
 ```
 

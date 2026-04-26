@@ -55,7 +55,7 @@ Use the delegate when browser work would burn a lot of main-agent tokens:
 browser-harness delegate "Open GitHub and summarize the current browser-delegate-agent repo page"
 ```
 
-Defaults: `glm-5.1`, `https://api.z.ai/api/paas/v4/`, `BH_AGENT_API_KEY` or `ZAI_API_KEY`, autonomous policy, browser-only tools. Use `--policy confirm` for logged-in mutations and `--policy dry-run` for planning without browser actions.
+Defaults: `glm-5.1`, `https://api.z.ai/api/coding/paas/v4/` (GLM Coding Plan; PaaS pay-as-you-go users override with `https://api.z.ai/api/paas/v4/`), `BH_AGENT_API_KEY` or `ZAI_API_KEY`, autonomous policy, browser-only tools. Use `--policy confirm` for logged-in mutations and `--policy dry-run` for planning without browser actions.
 
 The delegate can navigate, observe, click, type, scroll, switch tabs, fetch HTTP, and finish. It does not get shell or repo file access. A restricted `run_browser_code` fast path is available by default; pass `--no-code-tool` to disable it.
 

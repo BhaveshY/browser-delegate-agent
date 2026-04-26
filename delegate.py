@@ -137,9 +137,18 @@ def run_delegate_doctor(ns) -> int:
     row("install mode", _install_mode() != "unknown", _install_mode())
     row("daemon alive", daemon_alive(), "run `browser-harness --setup` if this fails")
     try:
-        provider = OpenAICompatibleProvider(ProviderConfig(model=ns.model, base_url=ns.base_url, api_key_env=ns.api_key_env, timeout=30))
-        resp = provider.completion([{"role": "user", "content": "Reply with ok."}], max_tokens=16)
-        content = resp.choices[0].message.content or ""
+        prev_thinking = os.environ.get("BH_AGENT_THINKING")
+        os.environ["BH_AGENT_THINKING"] = "disabled"
+        try:
+            provider = OpenAICompatibleProvider(ProviderConfig(model=ns.model, base_url=ns.base_url, api_key_env=ns.api_key_env, timeout=30))
+            resp = provider.completion([{"role": "user", "content": "Reply with ok."}], max_tokens=64)
+        finally:
+            if prev_thinking is None:
+                os.environ.pop("BH_AGENT_THINKING", None)
+            else:
+                os.environ["BH_AGENT_THINKING"] = prev_thinking
+        msg = resp.choices[0].message
+        content = (msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)) or ""
         row("provider call", bool(content), content[:80])
     except Exception as e:
         row("provider call", False, str(e))

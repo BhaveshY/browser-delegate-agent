@@ -543,6 +543,12 @@ def run_doctor():
         mark = "ok  " if ok else "FAIL"
         print(f"  [{mark}] {label}{(' — ' + detail) if detail else ''}")
 
+    def row_optional(label, ok, hint):
+        # Optional features: show [ok] when configured, [skip] when not — never FAIL.
+        mark = "ok  " if ok else "skip"
+        detail = "" if ok else hint
+        print(f"  [{mark}] {label}{(' — ' + detail) if detail else ''}")
+
     print("browser-harness doctor")
     print(f"  platform          {platform.system()} {platform.release()}")
     print(f"  python            {sys.version.split()[0]}")
@@ -553,9 +559,9 @@ def run_doctor():
         print("  latest release    (could not reach github)")
     row("chrome running", chrome, "" if chrome else "start chrome/edge and rerun `browser-harness --setup`")
     row("daemon alive", daemon, "" if daemon else "run `browser-harness --setup` to attach")
-    row("profile-use installed", profile_use, "" if profile_use else "optional: curl -fsSL https://browser-use.com/profile.sh | sh")
-    row("BROWSER_USE_API_KEY set", api_key, "" if api_key else "optional: needed only for cloud browsers / profile sync")
-    # Core health = chrome + daemon. Profile-use/api-key are optional.
+    row_optional("profile-use installed", profile_use, "cloud-only: curl -fsSL https://browser-use.com/profile.sh | sh")
+    row_optional("BROWSER_USE_API_KEY set", api_key, "cloud-only: needed for Browser Use cloud browsers / profile sync")
+    # Core health = chrome + daemon. Profile-use/api-key are optional cloud features.
     return 0 if (chrome and daemon) else 1
 
 

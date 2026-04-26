@@ -7,7 +7,9 @@ from types import SimpleNamespace
 
 
 DEFAULT_MODEL = "glm-5.1"
-DEFAULT_BASE_URL = "https://api.z.ai/api/paas/v4/"
+# Coding Plan endpoint by default — covered by the GLM Coding Plan subscription.
+# PaaS pay-as-you-go users should set BH_AGENT_BASE_URL=https://api.z.ai/api/paas/v4/.
+DEFAULT_BASE_URL = "https://api.z.ai/api/coding/paas/v4/"
 DEFAULT_API_KEY_ENVS = ("BH_AGENT_API_KEY", "ZAI_API_KEY")
 
 

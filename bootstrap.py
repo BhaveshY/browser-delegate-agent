@@ -24,6 +24,9 @@ def run_bootstrap_cli(argv=None):
     repo = Path(__file__).resolve().parent
     print("browser-harness bootstrap")
     ok = True
+    ok = _step("ensure .env file", lambda: ensure_env_file(repo)) and ok
+    # Reload env so a freshly-created .env is visible to later steps.
+    _reload_env(repo)
     ok = _step("install editable tool", lambda: install_editable(repo)) and ok
     ok = _step("register Codex skill", lambda: install_codex_skill(repo)) and ok
     ok = _step("register Claude Code import", lambda: install_claude_import(repo)) and ok
@@ -35,10 +38,44 @@ def run_bootstrap_cli(argv=None):
     return 0 if ok else 1
 
 
+def ensure_env_file(repo: Path):
+    """Create .env from .env.example if missing, so the user has one place to add the key."""
+    env_file = repo / ".env"
+    example = repo / ".env.example"
+    if env_file.exists():
+        return True
+    if not example.exists():
+        return True
+    env_file.write_text(example.read_text())
+    try:
+        os.chmod(env_file, 0o600)
+    except OSError:
+        pass
+    print(f"  created {env_file} (mode 600) -- edit it to add your API key, then rerun bootstrap")
+    return True
+
+
+def _reload_env(repo: Path):
+    """Re-read repo/.env into os.environ so steps after `ensure_env_file` see new values."""
+    env_file = repo / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        v = v.strip().strip('"').strip("'")
+        if v and v != "your_api_key_here":
+            os.environ.setdefault(k.strip(), v)
+
+
 def install_editable(repo: Path):
     if not _which("uv"):
         raise RuntimeError("uv is required; install uv first")
-    subprocess.run(["uv", "tool", "install", "-e", "."], cwd=repo, check=True)
+    # --force makes re-runs idempotent: silently overwrites an existing entry-point
+    # rather than failing with "Executable already exists".
+    subprocess.run(["uv", "tool", "install", "-e", ".", "--force"], cwd=repo, check=True)
     return True
 
 
@@ -83,20 +120,24 @@ def configure_provider(repo: Path, yes=False, no_save=False):
     if key:
         print(f"  provider key from {env_name}")
         return True
+    env_file = repo / ".env"
     if not sys.stdin.isatty():
-        raise RuntimeError("set BH_AGENT_API_KEY or ZAI_API_KEY, then rerun bootstrap")
+        raise RuntimeError(
+            f"BH_AGENT_API_KEY not set -- edit {env_file} and replace your_api_key_here, "
+            f"or export BH_AGENT_API_KEY/ZAI_API_KEY, then rerun bootstrap"
+        )
     print("  delegate needs an OpenAI-compatible provider key.")
-    print("  Default: Z.AI GLM-5.1. Set BH_AGENT_BASE_URL/BH_AGENT_MODEL for other providers.")
+    print("  Default: Z.AI GLM Coding Plan. Set BH_AGENT_BASE_URL/BH_AGENT_MODEL for other providers.")
     key = getpass.getpass("  API key (input hidden, leave blank to skip): ").strip()
     if not key:
         raise RuntimeError("delegate provider key not configured")
     os.environ["BH_AGENT_API_KEY"] = key
     if not no_save and (yes or _yes("save BH_AGENT_API_KEY to this repo's .env for future runs?", default=False)):
-        upsert_env(repo / ".env", "BH_AGENT_API_KEY", key)
-        upsert_env(repo / ".env", "BH_AGENT_MODEL", os.environ.get("BH_AGENT_MODEL", DEFAULT_MODEL))
-        upsert_env(repo / ".env", "BH_AGENT_BASE_URL", os.environ.get("BH_AGENT_BASE_URL", DEFAULT_BASE_URL))
+        upsert_env(env_file, "BH_AGENT_API_KEY", key)
+        upsert_env(env_file, "BH_AGENT_MODEL", os.environ.get("BH_AGENT_MODEL", DEFAULT_MODEL))
+        upsert_env(env_file, "BH_AGENT_BASE_URL", os.environ.get("BH_AGENT_BASE_URL", DEFAULT_BASE_URL))
         try:
-            os.chmod(repo / ".env", 0o600)
+            os.chmod(env_file, 0o600)
         except OSError:
             pass
     return True

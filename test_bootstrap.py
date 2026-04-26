@@ -47,3 +47,25 @@ def test_configure_provider_uses_existing_env(tmp_path, monkeypatch):
     monkeypatch.setenv("BH_AGENT_API_KEY", "key")
 
     assert bootstrap.configure_provider(tmp_path, no_save=True)
+
+
+def test_ensure_env_file_copies_example_when_missing(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env.example").write_text("BH_AGENT_API_KEY=your_api_key_here\n")
+
+    assert bootstrap.ensure_env_file(repo)
+
+    env = repo / ".env"
+    assert env.read_text() == "BH_AGENT_API_KEY=your_api_key_here\n"
+
+
+def test_ensure_env_file_does_not_overwrite_existing(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env.example").write_text("BH_AGENT_API_KEY=your_api_key_here\n")
+    (repo / ".env").write_text("BH_AGENT_API_KEY=real_key\n")
+
+    assert bootstrap.ensure_env_file(repo)
+
+    assert (repo / ".env").read_text() == "BH_AGENT_API_KEY=real_key\n"
