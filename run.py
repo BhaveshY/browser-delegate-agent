@@ -21,7 +21,7 @@ HELP = """Browser Harness
 Read SKILL.md for the default workflow and examples.
 
 Typical usage:
-  uv run bh <<'PY'
+  browser-harness <<'PY'
   ensure_real_tab()
   print(page_info())
   PY
@@ -30,8 +30,10 @@ Helpers are pre-imported. The daemon auto-starts and connects to the running bro
 
 Commands:
   browser-harness --version        print the installed version
+  browser-harness --bootstrap      install, register, attach browser, configure delegate
   browser-harness --doctor         diagnose install, daemon, and browser state
   browser-harness --setup          interactively attach to your running browser
+  browser-harness delegate TASK    hand browser work to an OpenAI-compatible model
   browser-harness --update [-y]    pull the latest version (agents: pass -y)
   browser-harness --reload         stop the daemon so next call picks up code changes
 """
@@ -45,6 +47,9 @@ def main():
     if args and args[0] == "--version":
         print(_version() or "unknown")
         return
+    if args and args[0] == "--bootstrap":
+        from bootstrap import run_bootstrap_cli
+        sys.exit(run_bootstrap_cli(args[1:]))
     if args and args[0] == "--doctor":
         sys.exit(run_doctor())
     if args and args[0] == "--setup":
@@ -56,14 +61,25 @@ def main():
         restart_daemon()
         print("daemon stopped — will restart fresh on next call")
         return
+    if args and args[0] == "delegate":
+        from delegate import run_delegate_cli
+        sys.exit(run_delegate_cli(args[1:]))
     if args and args[0] == "--debug-clicks":
         os.environ["BH_DEBUG_CLICKS"] = "1"
         args = args[1:]
-    if not args or args[0] != "-c":
+    if args and args[0] == "-c":
+        if len(args) < 2:
+            sys.exit("Usage: browser-harness -c \"print(page_info())\"")
+        code = args[1]
+    elif not args:
+        code = sys.stdin.read()
+        if not code.strip():
+            sys.exit("Usage: browser-harness -c \"print(page_info())\"")
+    else:
         sys.exit("Usage: browser-harness -c \"print(page_info())\"")
     print_update_banner()
     ensure_daemon()
-    exec(args[1], globals())
+    exec(code, globals())
 
 
 if __name__ == "__main__":

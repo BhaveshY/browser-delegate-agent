@@ -7,6 +7,18 @@ description: Install and bootstrap browser-harness into the current agent, then 
 
 Use this file only for first-time install, reconnect, or cold-start browser bootstrap. For day-to-day browser work, read `SKILL.md`. Always read `helpers.py` after cloning; that is where the functions and expected patterns live.
 
+## One-command bootstrap
+
+Preferred first-run flow:
+
+```bash
+uv run browser-harness --bootstrap
+```
+
+That command installs the current checkout globally, registers the harness for Codex and Claude Code, attaches to the user's real browser, configures the delegate provider from `BH_AGENT_API_KEY` / `ZAI_API_KEY` or a secure prompt, and runs a safe read-only delegate demo.
+
+If `--bootstrap` succeeds, continue with normal usage in `SKILL.md`. The manual steps below are for debugging or for agents that need to understand what bootstrap is doing.
+
 ## Install prompt contract
 
 When you open a setup or verification tab, activate it so the user can actually see the active browser tab.
@@ -26,15 +38,21 @@ That keeps the command global while still pointing at the real repo checkout, so
 
 ## Make it global for the current agent
 
-After the repo is installed, register this repo's `SKILL.md` with the agent you are using:
+After the repo is installed, `browser-harness --bootstrap` registers this repo's `SKILL.md` with the agent you are using:
 
 - **Codex**: add this file as a global skill at `$CODEX_HOME/skills/browser-harness/SKILL.md` (often `~/.codex/skills/browser-harness/SKILL.md`). A symlink to this repo's `SKILL.md` is fine.
 - **Claude Code**: add an import to `~/.claude/CLAUDE.md` that points at this repo's `SKILL.md`, for example `@~/src/browser-harness/SKILL.md`.
 
-Codex command:
+Manual Codex command:
 
 ```bash
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills/browser-harness" && ln -sf "$PWD/SKILL.md" "${CODEX_HOME:-$HOME/.codex}/skills/browser-harness/SKILL.md"
+```
+
+Manual Claude Code command:
+
+```bash
+mkdir -p "$HOME/.claude" && printf '\n@%s/SKILL.md\n' "$PWD" >> "$HOME/.claude/CLAUDE.md"
 ```
 
 That makes new Codex or Claude Code sessions in other folders load the runtime browser harness instructions automatically. An empty `~/.codex/skills/browser-harness/` directory is fine; the symlink command above populates it.
@@ -107,7 +125,9 @@ Wait 5 seconds, then reconnect. This resets all CDP state.
 
 ## Maintenance commands
 
+- browser-harness --bootstrap — one-shot install, agent registration, browser attach, delegate provider setup, and safe demo.
 - browser-harness --doctor — show version, install mode, daemon and Chrome state, and whether an update is pending.
+- browser-harness delegate --doctor — check delegate provider and policy configuration.
 - browser-harness --setup — re-run the full interactive browser-attach flow.
 - browser-harness --update -y — pull the latest version and restart the daemon. Run this yourself when you see the `[browser-harness] update available: X -> Y` banner — don't ask the user. The banner is rate-limited to once per day.
 

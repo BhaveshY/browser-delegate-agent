@@ -1,66 +1,110 @@
 <img src="https://r2.browser-use.com/github/ajsdlasnnalsgasld.png" alt="Browser Harness" width="100%" />
 
-# Browser Harness ♞
+# Browser Harness
 
-The simplest, thinnest, **self-healing** harness that gives LLM **complete freedom** to complete any browser task. Built directly on CDP.
+Point Codex or Claude Code at this repo and it bootstraps a real-browser delegate agent for you.
 
-The agent writes what's missing, mid-task. No framework, no recipes, no rails. One websocket to Chrome, nothing between.
+Browser Harness connects to your already-running Chrome, Edge, or Comet profile through CDP. It can now also delegate browser-heavy work to an external OpenAI-compatible model, defaulting to Z.AI `glm-5.1`, so your main coding agent can spend fewer tokens babysitting web pages.
 
-```
-  ● agent: wants to upload a file
-  │
-  ● helpers.py → upload_file() missing
-  │
-  ● agent edits the harness and writes it    helpers.py   192 → 199 lines
-  │                                                       + upload_file()
-  ✓ file uploaded
-```
+## 60-second quickstart
 
-**You will never use the browser again.**
-
-## Setup prompt
-
-Paste into Claude Code or Codex:
+Paste this into Codex or Claude Code:
 
 ```text
 Set up https://github.com/browser-use/browser-harness for me.
 
-Read `install.md` first to install and connect this repo to my real browser. Then read `SKILL.md` for normal usage. Always read `helpers.py` because that is where the functions are. When you open a setup or verification tab, activate it so I can see the active browser tab. After it is installed, open this repository in my browser and, if I am logged in to GitHub, ask me whether you should star it for me as a quick demo that the interaction works — only click the star if I say yes. If I am not logged in, just go to browser-use.com.
+Read install.md first. Run `uv run browser-harness --bootstrap` from the checkout. Then read SKILL.md and helpers.py for normal usage. When setup opens a browser permission or verification tab, activate it so I can see it.
 ```
 
-When this page appears, tick the checkbox so the agent can connect to your browser:
+Bootstrap does the boring parts:
 
-<img src="docs/setup-remote-debugging.png" alt="Remote debugging setup" width="520" style="border-radius: 12px;" />
+- Installs this checkout globally with `uv tool install -e .`.
+- Registers the harness instructions for Codex and Claude Code.
+- Attaches to your real browser and opens any required permission tab.
+- Configures the delegate provider from `BH_AGENT_API_KEY` or `ZAI_API_KEY`, or prompts for one.
+- Runs a safe read-only GitHub demo.
 
-See [domain-skills/](domain-skills/) for example tasks.
+## Delegate browser work
 
-## Free remote browsers
+```bash
+browser-harness delegate "Open the browser-harness repo and summarize the visible README"
+```
 
-Useful for stealth, sub-agents, or deployment.<br>
-**Free tier: 3 concurrent browsers, proxies, captcha solving, and more. No card required.**
+Defaults:
 
-- Grab a key at [cloud.browser-use.com/new-api-key](https://cloud.browser-use.com/new-api-key)
-- Or let the agent sign up itself via [docs.browser-use.com/llms.txt](https://docs.browser-use.com/llms.txt) (setup flow + challenge context included).
+- Model: `glm-5.1`
+- Base URL: `https://api.z.ai/api/paas/v4/`
+- Policy: `autonomous`
+- Tools: browser-only navigation, observe, click, type, scroll, tabs, HTTP fetch, and finish
 
-## How simple is it? (~592 lines of Python)
+Use any OpenAI-compatible provider:
 
-- `install.md` — first-time install and browser bootstrap
-- `SKILL.md` — day-to-day usage
-- `run.py` (~36 lines) — runs plain Python with helpers preloaded
-- `helpers.py` (~195 lines) — starting tool calls; the agent edits these
-- `admin.py` + `daemon.py` (~361 lines) — daemon bootstrap plus the CDP websocket and socket bridge
+```bash
+BH_AGENT_API_KEY=... \
+browser-harness delegate \
+  --base-url https://api.z.ai/api/paas/v4/ \
+  --model glm-5.1 \
+  "Find the current page title"
+```
+
+Safety-conscious mode:
+
+```bash
+browser-harness delegate --policy confirm "Open GitHub and prepare to star this repo"
+browser-harness delegate --policy dry-run "Plan how to submit this form"
+```
+
+## Architecture
+
+```text
+Codex / Claude Code
+        |
+        |  browser-harness delegate
+        v
+OpenAI-compatible model, e.g. GLM-5.1
+        |
+        |  JSON tool calls only
+        v
+Browser Harness tool runner
+        |
+        |  Unix socket JSON lines
+        v
+daemon.py -> CDP websocket -> your real browser
+```
+
+The external model does not get shell access or repo file access. It receives compact text observations of the page and can request browser tools. A restricted fast-path Python tool can batch browser helper calls, but it has no imports, no shell, no file access, no raw CDP, no uploads, and no cookies/storage access.
+
+## What this can do that normal agents cannot
+
+- Use your existing logged-in browser without pasting credentials.
+- Let you watch the active tab as the delegate works.
+- Offload long browser workflows to cheaper or specialized models.
+- Keep durable site knowledge in `domain-skills/` so future agents do not rediscover the same quirks.
+- Drop down to direct CDP helpers when normal web automation gets flaky.
+
+## Why not just Browser Use, Playwright, or MCP?
+
+- **Browser Use cloud** is great for managed remote browsers. Browser Harness is for your real local browser profile, with optional Browser Use cloud support when you want remote sessions.
+- **Playwright** is excellent for tests. Browser Harness is optimized for agents operating messy real sites where screenshots, coordinates, CDP, and mid-task helper edits are often faster.
+- **MCP** is a good integration surface. This repo stays installable as one tiny CLI first; an MCP wrapper can sit on top later.
+
+## Useful commands
+
+```bash
+browser-harness --bootstrap
+browser-harness --doctor
+browser-harness delegate --doctor
+browser-harness delegate "Open example.com and tell me what loaded"
+browser-harness --reload
+```
 
 ## Contributing
 
-PRs and improvements welcome. The best way to help: **contribute a new domain skill** under [domain-skills/](domain-skills/) for a site or task you use often (LinkedIn outreach, ordering on Amazon, filing expenses, etc.). Each skill teaches the agent the selectors, flows, and edge cases it would otherwise have to rediscover.
+The best contributions are small, field-tested improvements:
 
-- **Skills are written by the harness, not by you.** Just run your task with the agent — when it figures something non-obvious out, it files the skill itself (see [SKILL.md](SKILL.md)). Please don't hand-author skill files; agent-generated ones reflect what actually works in the browser.
-- Open a PR with the generated `domain-skills/<site>/` folder — small and focused is great.
-- Bug fixes, docs tweaks, and helper improvements are equally welcome.
-- Browse existing skills (`github/`, `linkedin/`, `amazon/`, ...) to see the shape.
+- New or improved `domain-skills/<site>/` notes.
+- Browser compatibility fixes.
+- Safer delegate tools.
+- Better bootstrap behavior for Codex, Claude Code, and other agents.
 
-If you're not sure where to start, open an issue and we'll point you somewhere useful.
-
----
-
-[The Bitter Lesson of Agent Harnesses](https://browser-use.com/posts/bitter-lesson-agent-harnesses) · [Web Agents That Actually Learn](https://browser-use.com/posts/web-agents-that-actually-learn)
+If an agent learns something non-obvious while completing a site workflow, capture the durable map, not the diary: selectors, URL patterns, API endpoints, waits, and traps.

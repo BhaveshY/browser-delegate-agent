@@ -434,7 +434,7 @@ def print_update_banner(out=None):
 
 
 def _chrome_running():
-    """Cross-platform best-effort check for a running Chrome/Edge process."""
+    """Cross-platform best-effort check for a running Chromium-family browser."""
     import platform, subprocess
     system = platform.system()
     try:
@@ -443,7 +443,7 @@ def _chrome_running():
             names = ("chrome.exe", "msedge.exe")
         else:
             out = subprocess.check_output(["ps", "-A", "-o", "comm="], text=True, timeout=5)
-            names = ("Google Chrome", "chrome", "chromium", "Microsoft Edge", "msedge")
+            names = ("Google Chrome", "chrome", "chromium", "Microsoft Edge", "msedge", "Comet")
         return any(n.lower() in out.lower() for n in names)
     except Exception:
         return False
@@ -455,12 +455,14 @@ def _open_chrome_inspect():
     url = "chrome://inspect/#remote-debugging"
     if platform.system() == "Darwin":
         try:
-            subprocess.run([
-                "osascript",
-                "-e", 'tell application "Google Chrome" to activate',
-                "-e", f'tell application "Google Chrome" to open location "{url}"',
-            ], timeout=5, check=False)
-            return
+            for app in ("Google Chrome", "Microsoft Edge", "Comet"):
+                r = subprocess.run([
+                    "osascript",
+                    "-e", f'tell application "{app}" to activate',
+                    "-e", f'tell application "{app}" to open location "{url}"',
+                ], timeout=5, check=False)
+                if r.returncode == 0:
+                    return
         except Exception:
             pass
     try:
@@ -481,7 +483,7 @@ def run_setup():
         return 0
 
     if not _chrome_running():
-        print("no Chrome/Edge process detected. please start your browser and rerun `browser-harness --setup`.")
+        print("no Chrome/Edge/Comet process detected. please start your browser and rerun `browser-harness --setup`.")
         return 1
 
     # First attach attempt.

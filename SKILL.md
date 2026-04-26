@@ -7,6 +7,16 @@ description: Direct browser control via CDP. Use when the user wants to automate
 
 Direct browser control via CDP. Read helpers.py — that's where the functions live. For setup, install, or connection problems, read install.md.
 
+## Bootstrap first
+
+For a fresh checkout, run:
+
+```bash
+uv run browser-harness --bootstrap
+```
+
+That installs the CLI, registers this skill for Codex and Claude Code, attaches to the user's browser, configures the delegate provider, and runs a safe read-only demo.
+
 ## Usage
 
 ```bash
@@ -36,6 +46,18 @@ PY
 ```
 
 run.py calls ensure_daemon() before exec — you never start/stop manually unless you want to.
+
+## Delegate agent
+
+Use the delegate when browser work would burn a lot of main-agent tokens:
+
+```bash
+browser-harness delegate "Open GitHub and summarize the current browser-harness repo page"
+```
+
+Defaults: `glm-5.1`, `https://api.z.ai/api/paas/v4/`, `BH_AGENT_API_KEY` or `ZAI_API_KEY`, autonomous policy, browser-only tools. Use `--policy confirm` for logged-in mutations and `--policy dry-run` for planning without browser actions.
+
+The delegate can navigate, observe, click, type, scroll, switch tabs, fetch HTTP, and finish. It does not get shell or repo file access. A restricted `run_browser_code` fast path is available by default; pass `--no-code-tool` to disable it.
 
 ### Remote browsers
 
