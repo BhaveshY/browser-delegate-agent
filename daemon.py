@@ -1,9 +1,10 @@
-"""CDP WS holder + Unix socket relay. One daemon per BU_NAME."""
+"""CDP WS holder + local relay. One daemon per BU_NAME."""
 import asyncio, json, os, socket, sys, time, urllib.request
 from collections import deque
 from pathlib import Path
 
 from cdp_use.client import CDPClient
+from runtime_paths import chrome_profile_candidates, daemon_endpoint, daemon_paths, endpoint_description
 
 
 def _load_env():
@@ -21,34 +22,12 @@ def _load_env():
 _load_env()
 
 NAME = os.environ.get("BU_NAME", "default")
-SOCK = f"/tmp/bu-{NAME}.sock"
-LOG = f"/tmp/bu-{NAME}.log"
-PID = f"/tmp/bu-{NAME}.pid"
+PATHS = daemon_paths(NAME)
+SOCK = str(PATHS["sock"])
+LOG = str(PATHS["log"])
+PID = str(PATHS["pid"])
 BUF = 500
-PROFILES = [
-    Path.home() / "Library/Application Support/Google/Chrome",
-    Path.home() / "Library/Application Support/Comet",
-    Path.home() / "Library/Application Support/Microsoft Edge",
-    Path.home() / "Library/Application Support/Microsoft Edge Beta",
-    Path.home() / "Library/Application Support/Microsoft Edge Dev",
-    Path.home() / "Library/Application Support/Microsoft Edge Canary",
-    Path.home() / ".config/google-chrome",
-    Path.home() / ".config/chromium",
-    Path.home() / ".config/chromium-browser",
-    Path.home() / ".config/microsoft-edge",
-    Path.home() / ".config/microsoft-edge-beta",
-    Path.home() / ".config/microsoft-edge-dev",
-    Path.home() / ".var/app/org.chromium.Chromium/config/chromium",
-    Path.home() / ".var/app/com.google.Chrome/config/google-chrome",
-    Path.home() / ".var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser",
-    Path.home() / ".var/app/com.microsoft.Edge/config/microsoft-edge",
-    Path.home() / "AppData/Local/Google/Chrome/User Data",
-    Path.home() / "AppData/Local/Chromium/User Data",
-    Path.home() / "AppData/Local/Microsoft/Edge/User Data",
-    Path.home() / "AppData/Local/Microsoft/Edge Beta/User Data",
-    Path.home() / "AppData/Local/Microsoft/Edge Dev/User Data",
-    Path.home() / "AppData/Local/Microsoft/Edge SxS/User Data",
-]
+PROFILES = chrome_profile_candidates()
 INTERNAL = ("chrome://", "chrome-untrusted://", "devtools://", "chrome-extension://", "about:")
 BU_API = "https://api.browser-use.com/api/v3"
 REMOTE_ID = os.environ.get("BU_BROWSER_ID")
@@ -56,6 +35,7 @@ API_KEY = os.environ.get("BROWSER_USE_API_KEY")
 
 
 def log(msg):
+    Path(LOG).parent.mkdir(parents=True, exist_ok=True)
     open(LOG, "a").write(f"{msg}\n")
 
 
@@ -199,9 +179,6 @@ class Daemon:
 
 
 async def serve(d):
-    if os.path.exists(SOCK):
-        os.unlink(SOCK)
-
     async def handler(reader, writer):
         try:
             line = await reader.readline()
@@ -219,9 +196,16 @@ async def serve(d):
         finally:
             writer.close()
 
-    server = await asyncio.start_unix_server(handler, path=SOCK)
-    os.chmod(SOCK, 0o600)
-    log(f"listening on {SOCK} (name={NAME}, remote={REMOTE_ID or 'local'})")
+    endpoint = daemon_endpoint(NAME)
+    if endpoint[0] == "tcp":
+        server = await asyncio.start_server(handler, endpoint[1], endpoint[2])
+    else:
+        if os.path.exists(SOCK):
+            os.unlink(SOCK)
+        server = await asyncio.start_unix_server(handler, path=SOCK)
+        os.chmod(SOCK, 0o600)
+
+    log(f"listening on {endpoint_description(NAME)} (name={NAME}, remote={REMOTE_ID or 'local'})")
     async with server:
         await d.stop.wait()
 
@@ -234,16 +218,22 @@ async def main():
 
 def already_running():
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.settimeout(1)
-        s.connect(SOCK); s.close(); return True
-    except (FileNotFoundError, ConnectionRefusedError, socket.timeout):
+        endpoint = daemon_endpoint(NAME)
+        if endpoint[0] == "tcp":
+            s = socket.create_connection((endpoint[1], endpoint[2]), timeout=1)
+        else:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.settimeout(1)
+            s.connect(endpoint[1])
+        s.close(); return True
+    except (FileNotFoundError, ConnectionRefusedError, ConnectionResetError, OSError, socket.timeout):
         return False
 
 
 if __name__ == "__main__":
     if already_running():
-        print(f"daemon already running on {SOCK}", file=sys.stderr)
+        print(f"daemon already running on {endpoint_description(NAME)}", file=sys.stderr)
         sys.exit(0)
+    Path(LOG).parent.mkdir(parents=True, exist_ok=True)
     open(LOG, "w").close()
     open(PID, "w").write(str(os.getpid()))
     try:

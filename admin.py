@@ -1,9 +1,17 @@
 import json
 import os
 import socket
+import sys
 import time
 import urllib.request
 from pathlib import Path
+from runtime_paths import (
+    chrome_debug_profile_dir,
+    daemon_endpoint,
+    daemon_paths,
+    endpoint_description,
+    version_cache_path,
+)
 
 
 _API_KEY_ENV_NAMES = ("BH_AGENT_API_KEY", "ZAI_API_KEY")
@@ -34,17 +42,17 @@ NAME = os.environ.get("BU_NAME", "default")
 BU_API = "https://api.browser-use.com/api/v3"
 PACKAGE_NAMES = ("browser-delegate-agent", "browser-harness")
 GH_RELEASES = "https://api.github.com/repos/BhaveshY/browser-delegate-agent/releases/latest"
-VERSION_CACHE = Path("/tmp/bu-version-cache.json")
+VERSION_CACHE = version_cache_path()
 VERSION_CACHE_TTL = 24 * 3600
 
 
 def _paths(name):
-    n = name or NAME
-    return f"/tmp/bu-{n}.sock", f"/tmp/bu-{n}.pid"
+    paths = daemon_paths(name)
+    return str(paths["sock"]), str(paths["pid"])
 
 
 def _log_tail(name):
-    p = f"/tmp/bu-{name or NAME}.log"
+    p = daemon_paths(name)["log"]
     try:
         return Path(p).read_text().strip().splitlines()[-1]
     except (FileNotFoundError, IndexError):
@@ -77,13 +85,25 @@ def _is_local_chrome_mode(env=None):
 
 def daemon_alive(name=None):
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(1)
-        s.connect(_paths(name)[0])
+        s = _connect_daemon(name, timeout=1)
         s.close()
         return True
-    except (FileNotFoundError, ConnectionRefusedError, socket.timeout):
+    except (FileNotFoundError, ConnectionRefusedError, ConnectionResetError, OSError, socket.timeout):
         return False
+
+
+def _connect_daemon(name=None, timeout=5):
+    endpoint = daemon_endpoint(name)
+    if endpoint[0] == "tcp":
+        return socket.create_connection((endpoint[1], endpoint[2]), timeout=timeout)
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        s.settimeout(timeout)
+        s.connect(endpoint[1])
+        return s
+    except Exception:
+        s.close()
+        raise
 
 
 def ensure_daemon(wait=60.0, name=None, env=None):
@@ -92,8 +112,7 @@ def ensure_daemon(wait=60.0, name=None, env=None):
         # Stale daemons accept connects AND reply to meta:* (pure Python) even when the
         # CDP WS to Chrome is dead — probe with a real CDP call and require "result".
         try:
-            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM); s.settimeout(3)
-            s.connect(_paths(name)[0])
+            s = _connect_daemon(name, timeout=3)
             s.sendall(b'{"method":"Target.getTargets","params":{}}\n')
             data = b""
             while not data.endswith(b"\n"):
@@ -108,11 +127,17 @@ def ensure_daemon(wait=60.0, name=None, env=None):
     local = _is_local_chrome_mode(env)
     for attempt in (0, 1):
         e = {**os.environ, **({"BU_NAME": name} if name else {}), **(env or {})}
-        p = subprocess.Popen(
-            ["uv", "run", "daemon.py"],
-            cwd=os.path.dirname(os.path.abspath(__file__)),
-            env=e, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
-        )
+        popen_kwargs = {
+            "cwd": os.path.dirname(os.path.abspath(__file__)),
+            "env": e,
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
+        if os.name == "nt":
+            popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            popen_kwargs["start_new_session"] = True
+        p = subprocess.Popen([sys.executable, "daemon.py"], **popen_kwargs)
         deadline = time.time() + wait
         while time.time() < deadline:
             if daemon_alive(name): return
@@ -124,7 +149,7 @@ def ensure_daemon(wait=60.0, name=None, env=None):
             print("browser-harness: click Allow on chrome://inspect (and tick the checkbox if shown)", file=sys.stderr)
             restart_daemon(name)
             continue
-        raise RuntimeError(msg or f"daemon {name or NAME} didn't come up -- check /tmp/bu-{name or NAME}.log")
+        raise RuntimeError(msg or f"daemon {name or NAME} didn't come up -- check {daemon_paths(name)['log']}")
 
 
 def stop_remote_daemon(name="remote"):
@@ -148,12 +173,11 @@ def restart_daemon(name=None):
     `browser-harness` invocation, which auto-spawns a fresh daemon via
     ensure_daemon(). The function itself only stops."""
     import signal
+    import subprocess
 
     sock, pid_path = _paths(name)
     try:
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.settimeout(5)
-        s.connect(sock)
+        s = _connect_daemon(name, timeout=5)
         s.sendall(b'{"meta":"shutdown"}\n')
         s.recv(1024)
         s.close()
@@ -165,21 +189,37 @@ def restart_daemon(name=None):
         pid = None
     if pid:
         for _ in range(75):
-            try:
-                os.kill(pid, 0)
-                time.sleep(0.2)
-            except ProcessLookupError:
+            if not _pid_alive(pid):
                 break
+            time.sleep(0.2)
         else:
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
     for f in (sock, pid_path):
         try:
             os.unlink(f)
-        except FileNotFoundError:
+        except (FileNotFoundError, OSError):
             pass
+
+
+def _pid_alive(pid):
+    import subprocess
+    if os.name == "nt":
+        try:
+            out = subprocess.check_output(["tasklist", "/FI", f"PID eq {pid}"], text=True, stderr=subprocess.DEVNULL)
+            return str(pid) in out
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
 
 
 def _browser_use(path, method, body=None):
@@ -466,6 +506,14 @@ def _open_chrome_inspect():
     """Open chrome://inspect/#remote-debugging so the user can tick the checkbox."""
     import platform, subprocess, webbrowser
     url = "chrome://inspect/#remote-debugging"
+    if platform.system() == "Windows":
+        exe = _find_chromium_executable()
+        if exe:
+            try:
+                subprocess.Popen([exe, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return
+            except Exception:
+                pass
     if platform.system() == "Darwin":
         try:
             for app in ("Google Chrome", "Microsoft Edge", "Comet"):
@@ -482,6 +530,106 @@ def _open_chrome_inspect():
         webbrowser.open(url, new=2)
     except Exception:
         pass
+
+
+def _find_chromium_executable():
+    import platform, shutil
+
+    override = os.environ.get("BH_CHROME_PATH") or os.environ.get("CHROME_PATH")
+    if override and Path(override).exists():
+        return override
+
+    system = platform.system()
+    if system == "Windows":
+        roots = [
+            os.environ.get("PROGRAMFILES"),
+            os.environ.get("PROGRAMFILES(X86)"),
+            os.environ.get("LOCALAPPDATA"),
+        ]
+        rels = [
+            "Google/Chrome/Application/chrome.exe",
+            "Microsoft/Edge/Application/msedge.exe",
+            "Chromium/Application/chrome.exe",
+        ]
+        for root in filter(None, roots):
+            for rel in rels:
+                candidate = Path(root) / rel
+                if candidate.exists():
+                    return str(candidate)
+        for name in ("chrome.exe", "msedge.exe"):
+            found = shutil.which(name)
+            if found:
+                return found
+    elif system == "Darwin":
+        for app in (
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        ):
+            if Path(app).exists():
+                return app
+    else:
+        for name in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "msedge"):
+            found = shutil.which(name)
+            if found:
+                return found
+    return None
+
+
+def _debug_port_ready(port):
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=2) as r:
+            json.loads(r.read())
+        return True
+    except Exception:
+        return False
+
+
+def start_chrome_debug(profile="default", port=9222, url="about:blank"):
+    """Launch a persistent isolated Chrome/Edge profile with CDP enabled.
+
+    This is the preferred Windows setup path: the profile is separate from the
+    user's main browser, but it persists under the harness runtime directory, so
+    subscription cookies survive future RADAR/browser-harness runs after the
+    user logs in once.
+    """
+    import subprocess
+
+    profile_dir = chrome_debug_profile_dir(profile)
+    profile_dir.mkdir(parents=True, exist_ok=True)
+
+    if _debug_port_ready(port):
+        print(f"Chrome debug port already live on 127.0.0.1:{port}")
+        print(f"profile: {profile_dir}")
+        return 0
+
+    exe = _find_chromium_executable()
+    if not exe:
+        print("could not find Chrome/Edge. Set BH_CHROME_PATH to chrome.exe/msedge.exe.", file=sys.stderr)
+        return 1
+
+    args = [
+        exe,
+        f"--remote-debugging-port={port}",
+        f"--user-data-dir={profile_dir}",
+        "--no-first-run",
+        "--no-default-browser-check",
+        url,
+    ]
+    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        if _debug_port_ready(port):
+            print(f"Chrome debug port live on 127.0.0.1:{port}")
+            print(f"profile: {profile_dir}")
+            print("Use this profile for subscription logins; cookies will persist across runs.")
+            return 0
+        time.sleep(0.5)
+
+    print(f"Chrome started, but 127.0.0.1:{port} did not become ready.", file=sys.stderr)
+    print(f"profile: {profile_dir}", file=sys.stderr)
+    return 1
 
 
 def run_setup():

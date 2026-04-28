@@ -2,6 +2,7 @@
 import base64, json, os, socket, time, urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
+from runtime_paths import daemon_endpoint, screenshot_path
 
 
 _API_KEY_ENV_NAMES = ("BH_AGENT_API_KEY", "ZAI_API_KEY")
@@ -29,13 +30,20 @@ def _load_env():
 _load_env()
 
 NAME = os.environ.get("BU_NAME", "default")
-SOCK = f"/tmp/bu-{NAME}.sock"
 INTERNAL = ("chrome://", "chrome-untrusted://", "devtools://", "chrome-extension://", "about:")
 
 
-def _send(req):
+def _connect_daemon():
+    endpoint = daemon_endpoint(NAME)
+    if endpoint[0] == "tcp":
+        return socket.create_connection((endpoint[1], endpoint[2]), timeout=10)
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.connect(SOCK)
+    s.connect(endpoint[1])
+    return s
+
+
+def _send(req):
+    s = _connect_daemon()
     s.sendall((json.dumps(req) + "\n").encode())
     data = b""
     while not data.endswith(b"\n"):
@@ -85,7 +93,7 @@ def click_at_xy(x, y, button="left", clicks=1):
         try:
             from PIL import Image, ImageDraw
             dpr = js("window.devicePixelRatio") or 1
-            path = capture_screenshot(f"/tmp/debug_click_{_debug_click_counter}.png")
+            path = capture_screenshot(str(screenshot_path(f"debug_click_{_debug_click_counter}.png")))
             img = Image.open(path)
             draw = ImageDraw.Draw(img)
             px, py = int(x * dpr), int(y * dpr)
@@ -128,7 +136,9 @@ def scroll(x, y, dy=-300, dx=0):
 
 
 # --- visual ---
-def capture_screenshot(path="/tmp/shot.png", full=False):
+def capture_screenshot(path=None, full=False):
+    if path is None:
+        path = str(screenshot_path("shot.png"))
     r = cdp("Page.captureScreenshot", format="png", captureBeyondViewport=full)
     open(path, "wb").write(base64.b64decode(r["data"]))
     return path

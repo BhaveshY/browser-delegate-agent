@@ -36,6 +36,33 @@ command -v browser-harness
 
 That keeps the command global while still pointing at the real repo checkout, so when the agent edits `helpers.py` the next `browser-harness` uses the new code immediately. Prefer a stable path like `~/Developer/browser-delegate-agent`, not `/tmp`.
 
+### Windows setup
+
+Do not install the public PyPI package named `browser-harness`; it is not this tool. Install this checkout directly:
+
+```powershell
+git clone https://github.com/BhaveshY/browser-delegate-agent
+cd browser-delegate-agent
+uv tool install -e .
+where browser-harness
+```
+
+If `uv` is unavailable, use the active Python environment:
+
+```powershell
+py -m pip install -e .
+where browser-harness
+```
+
+For Windows RADAR work, prefer a persistent harness-owned Chrome profile:
+
+```powershell
+browser-harness --start-chrome-debug https://www.iz.de/
+browser-harness --setup
+```
+
+The profile is stored under `%LOCALAPPDATA%\browser-harness\chrome-profile-default`, not a throwaway temp directory. Log in to subscription sites once in that Chrome window; cookies should persist for later RADAR/browser-harness runs. This avoids copying `DevToolsActivePort` files between profiles and avoids repeatedly losing paywall sessions.
+
 ## Make it global for the current agent
 
 After the repo is installed, `browser-harness --bootstrap` registers this repo's `SKILL.md` with the agent you are using:
@@ -134,13 +161,15 @@ Wait 5 seconds, then reconnect. This resets all CDP state.
 ## Architecture
 
 ```text
-Chrome / Browser Use cloud -> CDP WS -> daemon.py -> /tmp/bu-<NAME>.sock -> run.py
+Chrome / Browser Use cloud -> CDP WS -> daemon.py -> local relay -> run.py
 ```
 
 - Protocol is one JSON line each way.
 - Requests are {method, params, session_id} for CDP or {meta: ...} for daemon control.
 - Responses are {result} / {error} / {events} / {session_id}.
 - BU_NAME namespaces socket, pid, and log files.
+- macOS/Linux use Unix sockets under the harness runtime directory.
+- Windows uses a localhost TCP relay by default because Python's Unix-socket server APIs are not portable there.
 - BU_CDP_WS overrides local Chrome discovery for remote browsers.
 - BU_BROWSER_ID + BROWSER_USE_API_KEY lets the daemon stop a Browser Use cloud browser on shutdown.
 

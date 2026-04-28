@@ -10,6 +10,7 @@ from admin import (
     run_doctor,
     run_setup,
     run_update,
+    start_chrome_debug,
     start_remote_daemon,
     stop_remote_daemon,
     sync_local_profile,
@@ -33,6 +34,8 @@ Commands:
   browser-harness --bootstrap      install, register, attach browser, configure delegate
   browser-harness --doctor         diagnose install, daemon, and browser state
   browser-harness --setup          interactively attach to your running browser
+  browser-harness --start-chrome-debug [URL]
+                                   launch persistent Chrome profile with CDP enabled
   browser-harness delegate TASK    hand browser work to an OpenAI-compatible model
   browser-harness --update [-y]    pull the latest version (agents: pass -y)
   browser-harness --reload         stop the daemon so next call picks up code changes
@@ -54,6 +57,11 @@ def main():
         sys.exit(run_doctor())
     if args and args[0] == "--setup":
         sys.exit(run_setup())
+    if args and args[0] == "--start-chrome-debug":
+        url = args[1] if len(args) > 1 else "about:blank"
+        port = int(os.environ.get("BU_PORT", "9222"))
+        profile = os.environ.get("BH_CHROME_PROFILE", "default")
+        sys.exit(start_chrome_debug(profile=profile, port=port, url=url))
     if args and args[0] == "--update":
         yes = any(a in {"-y", "--yes"} for a in args[1:])
         sys.exit(run_update(yes=yes))

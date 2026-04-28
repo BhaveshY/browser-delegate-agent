@@ -18,4 +18,4 @@ dependencies = [
 browser-harness = "run:main"
 
 [tool.setuptools]
-py-modules = ["run", "helpers", "daemon", "admin", "agent_provider", "agent_policy", "agent_tools", "agent_transcript", "bootstrap", "delegate"]
+py-modules = ["run", "helpers", "daemon", "admin", "agent_provider", "agent_policy", "agent_tools", "agent_transcript", "bootstrap", "delegate", "runtime_paths"]

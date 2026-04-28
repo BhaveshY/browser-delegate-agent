@@ -17,6 +17,15 @@ uv run browser-harness --bootstrap
 
 That installs the CLI, registers this skill for Codex and Claude Code, attaches to the user's browser, configures the delegate provider, and runs a safe read-only demo.
 
+On Windows, if attach/setup is flaky or the task needs paywalled sessions, first launch the persistent harness profile:
+
+```powershell
+browser-harness --start-chrome-debug https://www.iz.de/
+browser-harness --setup
+```
+
+Use that Chrome window for manual subscription logins. It stores cookies under `%LOCALAPPDATA%\browser-harness\chrome-profile-default`, so agents should not copy `DevToolsActivePort` files or use throwaway temp profiles.
+
 ## Usage
 
 ```bash
